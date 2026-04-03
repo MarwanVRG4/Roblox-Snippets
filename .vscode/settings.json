@@ -1,0 +1,10 @@
+{
+    "luau-lsp.sourcemap.rojoPath": "rojo test.rbxl",
+
+    "[luau]": {
+    "editor.defaultFormatter": "JohnnyMorganz.stylua"
+    },
+    "[lua]": {
+    "editor.defaultFormatter": "JohnnyMorganz.stylua"
+    },
+}
