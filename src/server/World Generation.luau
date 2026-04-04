@@ -1,6 +1,6 @@
 --// Procedural Generation System by @MarwanVRG4
 
-local module = {}
+local generator = {}
 local organizedPlants = {} -- Organizes Plants According to Rarity then to their Biome
 
 local Gamerules = require(script.Parent.Parent.Dictionary.Gamerules)
@@ -15,9 +15,10 @@ local TRANSITION_THRESHOLD = 0.08
 local PLANT_DENSITY = 0.1
 local SUB_BIOME_RANGE = { 6, 9 }
 local SUB_BIOME_MAX_COUNT = 250
-module.Y_INCREMENT = 5
+generator.Y_INCREMENT = 5
 
-local RNG = Random.new()
+local RNG = Random.new(tick())
+math.randomseed(tick())
 
 local clamp = math.clamp
 local noise = math.noise
@@ -26,6 +27,7 @@ local lerp = math.lerp
 local sqrt = math.sqrt
 local round = math.round
 local floor = math.floor
+local random = math.random
 
 for x = -Gamerules.WorldRadius / Gamerules.ChunkSize, Gamerules.WorldRadius / Gamerules.ChunkSize do
 	for z = -Gamerules.WorldRadius / Gamerules.ChunkSize, Gamerules.WorldRadius / Gamerules.ChunkSize do
@@ -55,19 +57,19 @@ end
 local totalBlocks = (Gamerules.WorldRadius / Gamerules.BlockSize * 2 + 1) ^ 2
 local totalChunks = (Gamerules.WorldRadius / Gamerules.ChunkSize * 2 + 1) ^ 2
 
-module.ChunkSlopes = {} -- Holds the Average slope of each chunk sorted from lowest to highest
+generator.ChunkSlopes = {} -- Holds the Average slope of each chunk sorted from lowest to highest
 
-module.getChunk = function(X, Z)
+function generator.getChunk(X: number, Z: number): Model
 	return workspace.World.Terrain[tostring(round(floor(X / Gamerules.ChunkSize))) .. "_" .. tostring(
 		round(floor(Z / Gamerules.ChunkSize))
 	)]
 end
 
-module.nearestMultiple = function(n, m)
+function generator.nearestMultiple(n: number, m: number): number
 	return round(n / m) * m
 end
 
-module.Generate = function(Scale, Frequency, Amplitude, Seed)
+function generator.Generate(Scale: number, Frequency: number, Amplitude: number, Seed: number)
 	local initial = tick()
 
 	local blockProgress = 0
@@ -114,9 +116,11 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 			local subNoise = clamp(noise(x / 3 * Frequency * 6, z / 3 * Frequency * 6, Seed - 1) + 0.5, 0, 1) -- Sub-Biomes
 			local beach = (distance / Gamerules.WorldRadius) ^ 3.2 -- Cubed to become effective towards the end only (Transition to Beach)
 
-			local y =
-				module.nearestMultiple(round(continentalness * (1 - beach) * Gamerules.BlockSize), module.Y_INCREMENT)
-			local chosenChunk = module.getChunk(realX, realZ)
+			local y = generator.nearestMultiple(
+				round(continentalness * (1 - beach) * Gamerules.BlockSize),
+				generator.Y_INCREMENT
+			)
+			local chosenChunk = generator.getChunk(realX, realZ)
 
 			local biome = "Beach"
 
@@ -139,7 +143,7 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 				) -- Feature Density for Blocks (Determining Plants)
 			end
 
-			local block = (#module.ChunkSlopes > 0 and chosenChunk[realX .. "_" .. realZ]) or script.Block:Clone()
+			local block = (#generator.ChunkSlopes > 0 and chosenChunk[realX .. "_" .. realZ]) or script.Block:Clone()
 			block.Name = realX .. "_" .. realZ
 			block.CFrame = CFrame.new(realX, 0.5 + (y / 2), realZ)
 			block.Size = Vector3.new(Gamerules.BlockSize, 1 + y, Gamerules.BlockSize)
@@ -192,18 +196,18 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 
 	--// Sub-Biomes
 
-	local countSubBiomes = math.random(SUB_BIOME_RANGE[1], SUB_BIOME_RANGE[2])
+	local countSubBiomes = random(SUB_BIOME_RANGE[1], SUB_BIOME_RANGE[2])
 	for i = 1, countSubBiomes do -- Set Sub-Biome Cores
 		workspace.Status.Value = "Configuring Sub-Biomes (" .. i .. "/" .. countSubBiomes .. ")"
 
 		local att = 0
 		local x, z, blockData
 		repeat
-			x = module.nearestMultiple(
+			x = generator.nearestMultiple(
 				RNG:NextInteger(-Gamerules.WorldRadius * 0.7, Gamerules.WorldRadius * 0.7),
 				Gamerules.BlockSize
 			)
-			z = module.nearestMultiple(
+			z = generator.nearestMultiple(
 				RNG:NextInteger(-Gamerules.WorldRadius * 0.7, Gamerules.WorldRadius * 0.7),
 				Gamerules.BlockSize
 			)
@@ -241,15 +245,17 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 				if not subBlocks[x][z] then
 					continue
 				end
+
 				local neighbour, _, neighbourChunk = unpack(subBlocks[x][z])
 				neighbour:SetAttribute("Biome", biome)
 				neighbour.Color = block.Color
 				neighbour.Material = block.Material
 				neighbour.Parent = neighbourChunk
 				countBlocks += 1
+
 				if countBlocks >= SUB_BIOME_MAX_COUNT then
-					continue
-				end -- Don't Check for New neighbours if Above Max Count
+					continue -- Don't Check for New neighbours if Above Max Count
+				end
 
 				for _, newNeighbourPos in pairs({
 					{ x - Gamerules.BlockSize, z },
@@ -287,7 +293,7 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 
 	--// Set Average Slope for Chunks
 
-	module.ChunkSlopes = {}
+	generator.ChunkSlopes = {}
 
 	for i, chunk in pairs(workspace.World.Terrain:GetChildren()) do
 		local totalSlope, children = 0, chunk:GetChildren()
@@ -316,7 +322,7 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 		end
 
 		if #children > 0 then
-			table.insert(module.ChunkSlopes, { chunk, totalSlope / #children })
+			table.insert(generator.ChunkSlopes, { chunk, totalSlope / #children })
 		end
 
 		if i % 10 == 0 then
@@ -324,9 +330,9 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 		end -- Prevent Exhaustion
 	end
 
-	table.sort(module.ChunkSlopes, function(a, b)
-		return a[2] < b[2]
-	end) -- Sort from Lowest -- > Greatest, Used for Loops when Plotting Base
+	table.sort(generator.ChunkSlopes, function(a, b)
+		return a[2] < b[2] -- Sort from Lowest -- > Greatest, Used for Loops when Plotting Base
+	end)
 
 	task.wait() -- Prevent Exhaustion
 
@@ -337,9 +343,8 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 	--// Distribute Biome Features
 
 	table.sort(featureDensities, function(a, b)
-		return a[3] > b[3]
-	end) -- Sort from Lowest to Highest Density
-	-- local decorationBlocks = {} -- Blocks within top X% of their Biome are decorations
+		return a[3] > b[3] -- Sort from Lowest to Highest Density
+	end)
 
 	--// Populate World with Plants
 
@@ -368,7 +373,7 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 	initial = tick()
 
 	for i, pos in pairs(plantBlocks) do
-		local block = module.getChunk(pos[1], pos[2])[pos[1] .. "_" .. pos[2]]
+		local block = generator.getChunk(pos[1], pos[2])[pos[1] .. "_" .. pos[2]]
 		local biome = block:GetAttribute("Biome")
 		if not organizedPlants[biome] and Biomes[biome].Main then
 			biome = Biomes[biome].Main
@@ -391,12 +396,12 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 		local globalPlants = organizedPlants.Global[chosenRarity]
 		local eligiblePlants = organizedPlants[biome][chosenRarity]
 
-		local chosenPlant = (globalPlants and math.random(1, 3) == 1 and globalPlants[math.random(1, #globalPlants)])
-			or eligiblePlants[math.random(1, #eligiblePlants)]
+		local chosenPlant = (globalPlants and random(1, 3) == 1 and globalPlants[random(1, #globalPlants)])
+			or eligiblePlants[random(1, #eligiblePlants)]
 		if chosenPlant then
-			chosenPlant = chosenPlant:GetChildren()[math.random(1, #chosenPlant:GetChildren())]:Clone()
+			chosenPlant = chosenPlant:GetChildren()[random(1, #chosenPlant:GetChildren())]:Clone()
 			chosenPlant:PivotTo(
-				CFrame.new(pos[1], block.Size.Y, pos[2]) * CFrame.Angles(0, math.rad(math.random(-180, 180)), 0)
+				CFrame.new(pos[1], block.Size.Y, pos[2]) * CFrame.Angles(0, math.rad(random(-180, 180)), 0)
 			)
 			chosenPlant.Parent = block.Parent
 
@@ -412,7 +417,7 @@ module.Generate = function(Scale, Frequency, Amplitude, Seed)
 	print("World Generated: " .. tick() - initial .. "s")
 end
 
-module.ChunkOccupied = function(name)
+function generator.ChunkOccupied(name: string): boolean
 	if workspace.World.Terrain[name]:GetAttribute("Occupied") then
 		return true
 	end -- Eg. Travelling Merchant or Sub-Biomes
@@ -424,7 +429,7 @@ module.ChunkOccupied = function(name)
 	return false
 end
 
-module.HidePlants = function(chunk, minX, minZ, maxX, maxZ) -- Hide Plants that overlap with the base
+function generator.HidePlants(chunk, minX, minZ, maxX, maxZ) -- Hide Plants that overlap with the base
 	local hiddenPlants = {}
 	for _, obj in pairs(chunk:GetChildren()) do
 		local pos = obj:GetPivot()
@@ -442,7 +447,7 @@ module.HidePlants = function(chunk, minX, minZ, maxX, maxZ) -- Hide Plants that 
 	return hiddenPlants
 end
 
-module.FlattenArea = function(chunk, minX, minZ, maxX, maxZ)
+function generator.FlattenArea(chunk, minX, minZ, maxX, maxZ): number
 	local averageHeight = 0
 	local totalBlocks = {}
 
@@ -455,7 +460,7 @@ module.FlattenArea = function(chunk, minX, minZ, maxX, maxZ)
 			end
 		end
 	end
-	averageHeight = module.nearestMultiple(averageHeight / #totalBlocks, module.Y_INCREMENT)
+	averageHeight = generator.nearestMultiple(averageHeight / #totalBlocks, generator.Y_INCREMENT)
 
 	for _, block in pairs(totalBlocks) do -- Flatten Blocks under Base using Average Height
 		block:SetAttribute("DefaultY", block.Size.Y - 1)
@@ -463,12 +468,12 @@ module.FlattenArea = function(chunk, minX, minZ, maxX, maxZ)
 		block.Size = Vector3.new(Gamerules.BlockSize, 1 + averageHeight, Gamerules.BlockSize)
 	end
 
-	module.HidePlants(chunk, minX, minZ, maxX, maxZ)
+	generator.HidePlants(chunk, minX, minZ, maxX, maxZ)
 
 	return averageHeight
 end
 
-module.UndoFlatten = function(chunk)
+function generator.UndoFlatten(chunk: Model)
 	for _, block in pairs(chunk:GetChildren()) do
 		local defY = block:GetAttribute("DefaultY")
 		if defY then
@@ -480,13 +485,13 @@ module.UndoFlatten = function(chunk)
 
 	for _, obj in pairs(RepStorage.Runtime:GetChildren()) do
 		local pos = obj:IsA("PVInstance") and obj:GetPivot().Position
-		if RepStorage.Plants:FindFirstChild(obj.Name) and pos and module.getChunk(pos.X, pos.Z) == chunk then
+		if RepStorage.Plants:FindFirstChild(obj.Name) and pos and generator.getChunk(pos.X, pos.Z) == chunk then
 			obj.Parent = chunk
 		end
 	end
 end
 
-module.PlotBase = function(player, target)
+function generator.PlotBase(player: Player, target: Vector3)
 	local chosenChunk
 	local playerBase = workspace.World.Bases:FindFirstChild(player.UserId)
 
@@ -494,9 +499,10 @@ module.PlotBase = function(player, target)
 		local attempt = 0
 		repeat
 			attempt += 1
-			local chunk = module.ChunkSlopes[math.random(1, math.floor(#module.ChunkSlopes / 4))][1]
+			local chunk = generator.ChunkSlopes[random(1, math.floor(#generator.ChunkSlopes / 4))][1]
 			if
-				chunk:GetPivot().Position.Magnitude >= Gamerules.WorldRadius * 0.85 or module.ChunkOccupied(chunk.Name)
+				chunk:GetPivot().Position.Magnitude >= Gamerules.WorldRadius * 0.85
+				or generator.ChunkOccupied(chunk.Name)
 			then
 				continue
 			end
@@ -507,8 +513,8 @@ module.PlotBase = function(player, target)
 			return "Far"
 		end -- If too far from center
 
-		chosenChunk = module.getChunk(target.X, target.Z)
-		if module.ChunkOccupied(chosenChunk.Name) then
+		chosenChunk = generator.getChunk(target.X, target.Z)
+		if generator.ChunkOccupied(chosenChunk.Name) then
 			return "Occupied"
 		end
 	end
@@ -521,28 +527,28 @@ module.PlotBase = function(player, target)
 		playerBase = RepStorage.BaseTemplate:Clone()
 		playerBase.Name = player.UserId
 	else
-		module.UndoFlatten(workspace.World.Terrain[playerBase:GetAttribute("Chunk")])
+		generator.UndoFlatten(workspace.World.Terrain[playerBase:GetAttribute("Chunk")])
 	end
 
 	local chunkCenterX, chunkCenterZ = table.unpack(string.split(chosenChunk.Name, "_"))
-	chunkCenterX = tonumber(chunkCenterX) * Gamerules.ChunkSize + (Gamerules.ChunkSize / 2)
-	chunkCenterZ = tonumber(chunkCenterZ) * Gamerules.ChunkSize + (Gamerules.ChunkSize / 2)
+	chunkCenterX *= Gamerules.ChunkSize + (Gamerules.ChunkSize / 2)
+	chunkCenterZ *= Gamerules.ChunkSize + (Gamerules.ChunkSize / 2)
 
 	local minX, maxX =
-		module.nearestMultiple(-playerBase.PrimaryPart.Size.X / 2 + chunkCenterX, Gamerules.BlockSize),
-		module.nearestMultiple(playerBase.PrimaryPart.Size.X / 2 + chunkCenterX, Gamerules.BlockSize)
+		generator.nearestMultiple(-playerBase.PrimaryPart.Size.X / 2 + chunkCenterX, Gamerules.BlockSize),
+		generator.nearestMultiple(playerBase.PrimaryPart.Size.X / 2 + chunkCenterX, Gamerules.BlockSize)
 	local minZ, maxZ =
-		module.nearestMultiple(-playerBase.PrimaryPart.Size.Z / 2 + chunkCenterZ, Gamerules.BlockSize),
-		module.nearestMultiple(playerBase.PrimaryPart.Size.Z / 2 + chunkCenterZ, Gamerules.BlockSize)
-	local averageHeight = module.FlattenArea(chosenChunk, minX, minZ, maxX, maxZ)
+		generator.nearestMultiple(-playerBase.PrimaryPart.Size.Z / 2 + chunkCenterZ, Gamerules.BlockSize),
+		generator.nearestMultiple(playerBase.PrimaryPart.Size.Z / 2 + chunkCenterZ, Gamerules.BlockSize)
+	local averageHeight = generator.FlattenArea(chosenChunk, minX, minZ, maxX, maxZ)
 
 	playerBase:PivotTo(
 		CFrame.new(chunkCenterX, 1 + averageHeight, chunkCenterZ)
-			* CFrame.Angles(0, math.rad(math.round(math.random(-180, 180) / 90) * 90), 0)
+			* CFrame.Angles(0, math.rad(round(random(-180, 180) / 90) * 90), 0)
 	)
 	playerBase:SetAttribute("Chunk", chosenChunk.Name)
 	playerBase.Parent = workspace.World.Bases
 	return playerBase
 end
 
-return module
+return generator
